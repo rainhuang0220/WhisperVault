@@ -3,6 +3,7 @@ package com.whispervault.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.whispervault.R
 import com.whispervault.data.AudioFile
 import com.whispervault.data.TranscriptionTaskEntity
+import com.whispervault.viewmodel.HomeUiState
 import com.whispervault.viewmodel.HomeViewModel
 import com.whispervault.viewmodel.label
 
@@ -43,13 +45,71 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val tasks by viewModel.tasks.collectAsStateWithLifecycle()
 
-    Column(
+    // Single scrollable list so the header, controls, and queue all remain reachable
+    // in landscape and on small screens.
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .safeDrawingPadding()
-            .padding(horizontal = 24.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.Top,
+            .padding(horizontal = 24.dp),
+        contentPadding = PaddingValues(vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        item(key = "header") {
+            HomeHeader(
+                uiState = uiState,
+                onSelectModel = onSelectModel,
+                onSelectAudio = onSelectAudio,
+                onStartTranscription = onStartTranscription,
+                onClearSelection = { viewModel.clearSelection() },
+            )
+        }
+        if (uiState.selectedFiles.isNotEmpty()) {
+            item(key = "selected-header") {
+                Text(
+                    text = stringResource(R.string.selected_files_header),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
+            items(uiState.selectedFiles, key = { "sel-${it.uri}" }) { file ->
+                SelectedAudioRow(file)
+                HorizontalDivider()
+            }
+        }
+        if (tasks.isNotEmpty()) {
+            item(key = "queue-header") {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.queue_header),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+            }
+            items(tasks, key = { "task-${it.id}" }) { task ->
+                TaskRow(
+                    task = task,
+                    onReExport = { viewModel.reExport(task.id) },
+                )
+                HorizontalDivider()
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeHeader(
+    uiState: HomeUiState,
+    onSelectModel: () -> Unit,
+    onSelectAudio: () -> Unit,
+    onStartTranscription: () -> Unit,
+    onClearSelection: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -108,7 +168,7 @@ fun HomeScreen(
             }
             Spacer(modifier = Modifier.height(4.dp))
             OutlinedButton(
-                onClick = { viewModel.clearSelection() },
+                onClick = onClearSelection,
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(text = stringResource(R.string.clear_selection))
@@ -123,46 +183,6 @@ fun HomeScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(modifier = Modifier.height(12.dp))
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            if (uiState.selectedFiles.isNotEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.selected_files_header),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-                items(uiState.selectedFiles, key = { "sel-${it.uri}" }) { file ->
-                    SelectedAudioRow(file)
-                    HorizontalDivider()
-                }
-            }
-            if (tasks.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = stringResource(R.string.queue_header),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 4.dp),
-                    )
-                }
-                items(tasks, key = { "task-${it.id}" }) { task ->
-                    TaskRow(
-                        task = task,
-                        onReExport = { viewModel.reExport(task.id) },
-                    )
-                    HorizontalDivider()
-                }
-            }
-        }
     }
 }
 
