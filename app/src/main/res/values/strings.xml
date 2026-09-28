@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">WhisperVault</string>
+    <string name="tagline">Privacy-first offline transcription</string>
+    <string name="select_audio">Select audio files</string>
+    <string name="status_idle">Idle — select audio to begin</string>
+    <string name="privacy_note">Audio never leaves your device. No network. No cloud AI.</string>
+</resources>

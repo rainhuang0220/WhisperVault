@@ -1,0 +1,67 @@
+# Built application files
+*.apk
+*.aar
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+
+# Gradle files
+.gradle/
+build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Android Studio
+*.iml
+.idea/
+.navigation/
+captures/
+output.json
+
+# NDK
+.cxx/
+obj/
+libs/**/lib*.so
+
+# External native build
+.externalNativeBuild/
+
+# Keystores — never commit secrets
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+
+# Whisper models (large binaries)
+*.bin
+models/
+**/ggml-*.bin
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin
+.kotlin/
+
+# Outputs
+outputs/
+dist/
+*.log
+
+# Test / coverage
+jacoco/
+coverage/
+*.exec
