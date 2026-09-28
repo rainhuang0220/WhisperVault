@@ -15,8 +15,8 @@ data class AudioFile(
     val extension: String
         get() = displayName.substringAfterLast('.', missingDelimiterValue = "").lowercase()
 
-    fun isSupportedFormat(): Boolean = extension in SUPPORTED_EXTENSIONS ||
-        (mimeType != null && mimeType in SUPPORTED_MIME_TYPES)
+    fun isSupportedFormat(): Boolean =
+        AudioFileValidator.isSupported(displayName, mimeType)
 
     companion object {
         val SUPPORTED_EXTENSIONS = setOf("mp3", "wav", "m4a", "flac", "aac", "ogg")

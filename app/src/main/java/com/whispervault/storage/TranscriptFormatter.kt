@@ -1,12 +1,11 @@
 package com.whispervault.storage
 
 import com.whispervault.transcription.TranscriptSegment
-import org.json.JSONArray
-import org.json.JSONObject
 
 /**
  * Formats transcription results as plain text, JSON, and SubRip (SRT).
  * SRT timestamps use whisper.cpp segment times (centiseconds → hh:mm:ss,mmm).
+ * Pure Kotlin (no org.json) so JVM unit tests can run without Android stubs.
  */
 object TranscriptFormatter {
 
@@ -18,23 +17,26 @@ object TranscriptFormatter {
         segments: List<TranscriptSegment>,
         modelPath: String,
     ): String {
-        val root = JSONObject()
-        root.put("source", displayName)
-        root.put("model", modelPath)
-        root.put("text", text)
-        val arr = JSONArray()
-        segments.forEach { seg ->
-            arr.put(
-                JSONObject()
-                    .put("text", seg.text)
-                    .put("start_ms", seg.startMs)
-                    .put("end_ms", seg.endMs)
-                    .put("t0_centiseconds", seg.t0Centiseconds)
-                    .put("t1_centiseconds", seg.t1Centiseconds),
-            )
+        val sb = StringBuilder()
+        sb.append("{\n")
+        sb.append("  \"source\": ").append(jsonString(displayName)).append(",\n")
+        sb.append("  \"model\": ").append(jsonString(modelPath)).append(",\n")
+        sb.append("  \"text\": ").append(jsonString(text)).append(",\n")
+        sb.append("  \"segments\": [\n")
+        segments.forEachIndexed { index, seg ->
+            sb.append("    {\n")
+            sb.append("      \"text\": ").append(jsonString(seg.text)).append(",\n")
+            sb.append("      \"start_ms\": ").append(seg.startMs).append(",\n")
+            sb.append("      \"end_ms\": ").append(seg.endMs).append(",\n")
+            sb.append("      \"t0_centiseconds\": ").append(seg.t0Centiseconds).append(",\n")
+            sb.append("      \"t1_centiseconds\": ").append(seg.t1Centiseconds).append("\n")
+            sb.append("    }")
+            if (index < segments.lastIndex) sb.append(',')
+            sb.append('\n')
         }
-        root.put("segments", arr)
-        return root.toString(2) + "\n"
+        sb.append("  ]\n")
+        sb.append("}\n")
+        return sb.toString()
     }
 
     fun toSrt(segments: List<TranscriptSegment>): String {
@@ -64,36 +66,44 @@ object TranscriptFormatter {
     }
 
     fun segmentsToJson(segments: List<TranscriptSegment>): String {
-        val arr = JSONArray()
-        segments.forEach { seg ->
-            arr.put(
-                JSONObject()
-                    .put("text", seg.text)
-                    .put("t0", seg.t0Centiseconds)
-                    .put("t1", seg.t1Centiseconds),
-            )
+        val sb = StringBuilder()
+        sb.append('[')
+        segments.forEachIndexed { index, seg ->
+            if (index > 0) sb.append(',')
+            sb.append('{')
+            sb.append("\"text\":").append(jsonString(seg.text)).append(',')
+            sb.append("\"t0\":").append(seg.t0Centiseconds).append(',')
+            sb.append("\"t1\":").append(seg.t1Centiseconds)
+            sb.append('}')
         }
-        return arr.toString()
+        sb.append(']')
+        return sb.toString()
     }
 
     fun segmentsFromJson(json: String?): List<TranscriptSegment> {
-        if (json.isNullOrBlank()) return emptyList()
-        return try {
-            val arr = JSONArray(json)
-            buildList {
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    add(
-                        TranscriptSegment(
-                            text = obj.optString("text"),
-                            t0Centiseconds = obj.optLong("t0"),
-                            t1Centiseconds = obj.optLong("t1"),
-                        ),
-                    )
-                }
-            }
-        } catch (_: Exception) {
-            emptyList()
+        if (json.isNullOrBlank() || json == "[]") return emptyList()
+        val result = ArrayList<TranscriptSegment>()
+        val objectRegex = Regex("""\{[^{}]*\}""")
+        objectRegex.findAll(json).forEach { match ->
+            val obj = match.value
+            val text = Regex(""""text"\s*:\s*"((?:\\.|[^"\\])*)"""").find(obj)?.groupValues?.get(1)
+                ?.replace("\\\"", "\"")
+                ?.replace("\\n", "\n")
+                ?: ""
+            val t0 = Regex(""""t0"\s*:\s*(-?\d+)""").find(obj)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            val t1 = Regex(""""t1"\s*:\s*(-?\d+)""").find(obj)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            result.add(TranscriptSegment(text = text, t0Centiseconds = t0, t1Centiseconds = t1))
         }
+        return result
+    }
+
+    private fun jsonString(value: String): String {
+        val escaped = value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+        return "\"$escaped\""
     }
 }

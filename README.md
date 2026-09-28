@@ -12,7 +12,23 @@ Privacy-first **offline** audio transcription for Android. Select audio on your 
 
 ## Status
 
-Phase 5 — Transcripts export as txt / json / srt to `Download/WhisperVault/` via MediaStore. SRT uses whisper.cpp segment timestamps.
+Phase 6 — Reliability hardening (chunked decode / windowed ASR / OOM handling / rotation & process recovery) plus unit and instrumentation tests.
+
+## Testing
+
+Unit tests (no device / no model required):
+
+```bash
+./gradlew :app:testDebugUnitTest
+```
+
+Instrumentation tests (requires a connected device or emulator; arm64-v8a recommended because the native library is arm64-only):
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+The instrumentation suite only launches the UI — it does **not** require a ggml model binary.
 
 ## Export location
 

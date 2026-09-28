@@ -4,15 +4,17 @@ All notable changes to WhisperVault are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Chunked MediaCodec decode and 30s overlapping whisper windows for long audio
+- OOM during transcription marks tasks FAILED instead of crashing the worker
+- Queue UI survives rotation via ViewModel; unfinished work recovers via Room + WorkManager
+
 ### Added
 
-- Transcript export as `.txt`, `.json`, and `.srt`
-- MediaStore writes under `Download/WhisperVault/` (no broad storage permission)
-- SRT cues built from whisper.cpp segment timestamps (`t0`/`t1` centiseconds)
-- Auto-export when a queue task reaches DONE; manual re-export from the queue list
+- JVM unit tests: task state machine, transcript formatting (txt/json/srt), AudioFile validation
+- Instrumentation test for home screen launch (no model binary required)
 
 ### Earlier
 
-- Batch queue (Room + WorkManager + foreground `dataSync`)
-- Offline whisper.cpp ASR
-- SAF audio picker and project scaffold
+- Export, queue, whisper.cpp ASR, SAF picker, scaffold

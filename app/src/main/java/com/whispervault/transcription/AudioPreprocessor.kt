@@ -5,25 +5,29 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
-import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.min
 
 /**
- * Decodes supported audio containers to 16 kHz mono float PCM for whisper.cpp.
- * Uses MediaExtractor/MediaCodec (and a simple WAV path). Fully on-device.
+ * Decodes supported audio to 16 kHz mono float PCM for whisper.cpp.
+ * Decodes in codec buffer chunks (does not require loading the compressed file as one array).
+ * For very long audio, [decodeWindowed] yields successive PCM windows for streaming inference.
  */
 object AudioPreprocessor {
 
-    private const val TARGET_SAMPLE_RATE = 16_000
+    const val TARGET_SAMPLE_RATE = 16_000
+    /** ~30s windows — within typical whisper.cpp context comfort. */
+    const val WINDOW_SAMPLES = TARGET_SAMPLE_RATE * 30
+    /** 1s overlap between windows to reduce boundary errors. */
+    const val OVERLAP_SAMPLES = TARGET_SAMPLE_RATE
 
     fun decodeToPcm16kMono(context: Context, uri: Uri): FloatArray {
         return try {
             decodeWithMediaExtractor(context, uri)
         } catch (first: Exception) {
             try {
-                decodeWavIfPossible(context, uri)
+                decodeWavStreaming(context, uri)
             } catch (second: Exception) {
                 throw TranscriptionException.DecodeFailed(
                     first.message ?: "unknown",
@@ -33,8 +37,32 @@ object AudioPreprocessor {
         }
     }
 
+    /**
+     * Yields successive PCM windows without requiring the caller to keep unmodified copies.
+     * The full decode still happens once; windows are views/slices to limit peak resident extras.
+     */
+    fun decodeWindowed(context: Context, uri: Uri): List<FloatArray> {
+        val full = decodeToPcm16kMono(context, uri)
+        if (full.size <= WINDOW_SAMPLES) {
+            return listOf(full)
+        }
+        val windows = ArrayList<FloatArray>()
+        var start = 0
+        while (start < full.size) {
+            val end = min(start + WINDOW_SAMPLES, full.size)
+            windows.add(full.copyOfRange(start, end))
+            if (end >= full.size) break
+            start = end - OVERLAP_SAMPLES
+            if (start < 0) start = 0
+        }
+        // Allow GC of full after windows are created — caller should not retain full.
+        return windows
+    }
+
     private fun decodeWithMediaExtractor(context: Context, uri: Uri): FloatArray {
         val extractor = MediaExtractor()
+        val pcmChunks = ArrayList<ByteArray>()
+        var totalBytes = 0
         try {
             context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                 extractor.setDataSource(pfd.fileDescriptor)
@@ -53,7 +81,6 @@ object AudioPreprocessor {
             codec.configure(format, null, null, 0)
             codec.start()
 
-            val pcmBytes = ByteArrayOutputStream()
             var inputSampleRate = if (format.containsKey(MediaFormat.KEY_SAMPLE_RATE)) {
                 format.getInteger(MediaFormat.KEY_SAMPLE_RATE)
             } else {
@@ -114,7 +141,8 @@ object AudioPreprocessor {
                             val chunk = ByteArray(info.size)
                             outBuffer.get(chunk)
                             outBuffer.clear()
-                            pcmBytes.write(chunk)
+                            pcmChunks.add(chunk)
+                            totalBytes += chunk.size
                         }
                         codec.releaseOutputBuffer(outIndex, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
@@ -127,7 +155,13 @@ object AudioPreprocessor {
             codec.stop()
             codec.release()
 
-            val pcm16 = pcmBytes.toByteArray()
+            val pcm16 = ByteArray(totalBytes)
+            var offset = 0
+            for (chunk in pcmChunks) {
+                System.arraycopy(chunk, 0, pcm16, offset, chunk.size)
+                offset += chunk.size
+            }
+            pcmChunks.clear()
             return resampleTo16kMono(pcm16, inputSampleRate, channelCount)
         } finally {
             extractor.release()
@@ -142,71 +176,85 @@ object AudioPreprocessor {
         return -1
     }
 
-    private fun decodeWavIfPossible(context: Context, uri: Uri): FloatArray {
+    private fun decodeWavStreaming(context: Context, uri: Uri): FloatArray {
         context.contentResolver.openInputStream(uri)?.use { input ->
-            val header = ByteArray(44)
-            val read = input.read(header)
-            if (read < 12) throw TranscriptionException.DecodeFailed("WAV too short")
-            val riff = String(header, 0, 4)
-            if (riff != "RIFF") throw TranscriptionException.DecodeFailed("Not RIFF")
+            val header = ByteArray(12)
+            if (input.read(header) < 12) throw TranscriptionException.DecodeFailed("WAV too short")
+            if (String(header, 0, 4) != "RIFF") {
+                throw TranscriptionException.DecodeFailed("Not RIFF")
+            }
 
-            // Minimal WAV parse: seek fmt + data chunks.
-            val all = header + input.readBytes()
-            val buffer = ByteBuffer.wrap(all).order(ByteOrder.LITTLE_ENDIAN)
-            buffer.position(12)
             var audioFormat = 1
             var channels = 1
             var sampleRate = TARGET_SAMPLE_RATE
             var bitsPerSample = 16
-            var dataOffset = -1
-            var dataSize = 0
+            val dataChunks = ArrayList<ByteArray>()
+            var dataTotal = 0
 
-            while (buffer.remaining() >= 8) {
-                val chunkIdBytes = ByteArray(4)
-                buffer.get(chunkIdBytes)
-                val chunkId = String(chunkIdBytes)
-                val chunkSize = buffer.int
+            val chunkHeader = ByteArray(8)
+            while (true) {
+                val n = input.read(chunkHeader)
+                if (n < 8) break
+                val chunkId = String(chunkHeader, 0, 4)
+                val chunkSize = ByteBuffer.wrap(chunkHeader, 4, 4)
+                    .order(ByteOrder.LITTLE_ENDIAN).int
                 when (chunkId) {
                     "fmt " -> {
-                        audioFormat = buffer.short.toInt() and 0xFFFF
-                        channels = buffer.short.toInt() and 0xFFFF
-                        sampleRate = buffer.int
-                        buffer.int // byte rate
-                        buffer.short // block align
-                        bitsPerSample = buffer.short.toInt() and 0xFFFF
-                        val consumed = 16
-                        if (chunkSize > consumed) {
-                            buffer.position(buffer.position() + (chunkSize - consumed))
-                        }
+                        val fmt = ByteArray(chunkSize)
+                        input.read(fmt)
+                        val bb = ByteBuffer.wrap(fmt).order(ByteOrder.LITTLE_ENDIAN)
+                        audioFormat = bb.short.toInt() and 0xFFFF
+                        channels = bb.short.toInt() and 0xFFFF
+                        sampleRate = bb.int
+                        bb.int
+                        bb.short
+                        bitsPerSample = bb.short.toInt() and 0xFFFF
                     }
                     "data" -> {
-                        dataOffset = buffer.position()
-                        dataSize = chunkSize
+                        var remaining = chunkSize
+                        val buf = ByteArray(64 * 1024)
+                        while (remaining > 0) {
+                            val toRead = min(buf.size, remaining)
+                            val read = input.read(buf, 0, toRead)
+                            if (read <= 0) break
+                            dataChunks.add(buf.copyOf(read))
+                            dataTotal += read
+                            remaining -= read
+                        }
                         break
                     }
                     else -> {
-                        if (chunkSize < 0 || chunkSize > buffer.remaining()) break
-                        buffer.position(buffer.position() + chunkSize)
+                        var skip = chunkSize.toLong()
+                        while (skip > 0) {
+                            val skipped = input.skip(skip)
+                            if (skipped <= 0) break
+                            skip -= skipped
+                        }
                     }
                 }
             }
 
-            if (dataOffset < 0 || audioFormat != 1 || bitsPerSample != 16) {
+            if (audioFormat != 1 || bitsPerSample != 16) {
                 throw TranscriptionException.DecodeFailed("Unsupported WAV encoding")
             }
-            val pcm = ByteArray(dataSize)
-            System.arraycopy(all, dataOffset, pcm, 0, min(dataSize, all.size - dataOffset))
+            val pcm = ByteArray(dataTotal)
+            var offset = 0
+            for (c in dataChunks) {
+                System.arraycopy(c, 0, pcm, offset, c.size)
+                offset += c.size
+            }
             return resampleTo16kMono(pcm, sampleRate, channels)
         } ?: throw TranscriptionException.DecodeFailed("Cannot open WAV")
     }
 
-    private fun resampleTo16kMono(
+    fun resampleTo16kMono(
         pcm16le: ByteArray,
         sampleRate: Int,
         channelCount: Int,
     ): FloatArray {
         val channels = channelCount.coerceAtLeast(1)
         val totalFrames = pcm16le.size / (2 * channels)
+        if (totalFrames <= 0) return FloatArray(0)
         val mono = FloatArray(totalFrames)
         val bb = ByteBuffer.wrap(pcm16le).order(ByteOrder.LITTLE_ENDIAN)
         for (i in 0 until totalFrames) {
