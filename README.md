@@ -12,13 +12,13 @@ Privacy-first **offline** audio transcription for Android. Select audio on your 
 
 ## Status
 
-Phase 1 — Android project scaffold with Compose home screen, package layout, and JNI CMake skeleton.
+Phase 2 — SAF multi-select audio picker wired to the home screen. Selected files (mp3, wav, m4a, flac, aac, ogg) are listed with size and duration when available. Offline ASR arrives next.
 
 ## Build prerequisites
 
 - JDK 17+
 - Android SDK Platform 35, Build-Tools 35+
-- Android NDK (r27 recommended) and CMake 3.22.1
+- Android NDK 26.1.10909125 (pinned in `app/build.gradle.kts`) and CMake 3.22.1
 - Gradle wrapper included (`./gradlew`)
 
 Create `local.properties` (gitignored) with your SDK path:

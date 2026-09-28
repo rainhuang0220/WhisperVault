@@ -1,7 +1,6 @@
 package com.whispervault.data
 
 /**
- * Domain models for transcription tasks and audio metadata.
- * Concrete types are added as storage and queue features land.
+ * Domain models for transcription tasks live alongside [AudioFile].
  */
 object DataModels

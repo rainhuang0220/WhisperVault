@@ -1,6 +1,10 @@
 package com.whispervault.viewmodel
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
+import com.whispervault.data.AudioFile
+import com.whispervault.storage.StorageGateway
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -8,17 +12,39 @@ import kotlinx.coroutines.flow.update
 
 data class HomeUiState(
     val statusMessage: String = "Idle — select audio to begin",
+    val selectedFiles: List<AudioFile> = emptyList(),
 )
 
-class HomeViewModel : ViewModel() {
+class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    fun onSelectAudioClicked() {
-        // Real SAF picker arrives in a later phase.
+    fun onAudioUrisSelected(uris: List<Uri>) {
+        if (uris.isEmpty()) {
+            _uiState.update {
+                it.copy(statusMessage = "No files selected")
+            }
+            return
+        }
+        val files = StorageGateway.resolveAudioFiles(getApplication(), uris)
         _uiState.update {
-            it.copy(statusMessage = "Ready — audio picker will open in the next release step")
+            it.copy(
+                selectedFiles = files,
+                statusMessage = when {
+                    files.isEmpty() -> "No supported audio files in selection"
+                    else -> "Selected ${files.size} audio file(s)"
+                },
+            )
+        }
+    }
+
+    fun clearSelection() {
+        _uiState.update {
+            it.copy(
+                selectedFiles = emptyList(),
+                statusMessage = "Idle — select audio to begin",
+            )
         }
     }
 }
