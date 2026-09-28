@@ -14,6 +14,9 @@ interface TranscriptionTaskDao {
     @Query("SELECT * FROM transcription_tasks ORDER BY id ASC")
     suspend fun getAll(): List<TranscriptionTaskEntity>
 
+    @Query("SELECT * FROM transcription_tasks WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): TranscriptionTaskEntity?
+
     @Query("SELECT * FROM transcription_tasks WHERE status = :status ORDER BY id ASC LIMIT 1")
     suspend fun getNextWithStatus(status: TaskStatus): TranscriptionTaskEntity?
 
@@ -26,7 +29,11 @@ interface TranscriptionTaskDao {
     @Query(
         """
         UPDATE transcription_tasks
-        SET status = :status, errorMessage = :error, resultText = :resultText, updatedAt = :updatedAt
+        SET status = :status,
+            errorMessage = :error,
+            resultText = :resultText,
+            segmentsJson = :segmentsJson,
+            updatedAt = :updatedAt
         WHERE id = :id
         """,
     )
@@ -35,6 +42,25 @@ interface TranscriptionTaskDao {
         status: TaskStatus,
         error: String?,
         resultText: String?,
+        segmentsJson: String? = null,
+        updatedAt: Long = System.currentTimeMillis(),
+    )
+
+    @Query(
+        """
+        UPDATE transcription_tasks
+        SET exportTxtUri = :txtUri,
+            exportJsonUri = :jsonUri,
+            exportSrtUri = :srtUri,
+            updatedAt = :updatedAt
+        WHERE id = :id
+        """,
+    )
+    suspend fun updateExports(
+        id: Long,
+        txtUri: String?,
+        jsonUri: String?,
+        srtUri: String?,
         updatedAt: Long = System.currentTimeMillis(),
     )
 

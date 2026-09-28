@@ -18,6 +18,8 @@ import androidx.work.WorkerParameters
 import com.whispervault.R
 import com.whispervault.data.AppDatabase
 import com.whispervault.data.TaskStatus
+import com.whispervault.storage.TranscriptExporter
+import com.whispervault.storage.TranscriptFormatter
 import com.whispervault.transcription.TranscriptionEngine
 import com.whispervault.transcription.TranscriptionException
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +42,7 @@ class TranscriptionWorker(
             while (true) {
                 val task = dao.getNextWithStatus(TaskStatus.WAITING) ?: break
                 setForeground(createForegroundInfo("Transcribing: ${task.displayName}"))
-                dao.updateStatus(task.id, TaskStatus.RUNNING, null, null)
+                dao.updateStatus(task.id, TaskStatus.RUNNING, null, null, null)
                 try {
                     if (!engine.isModelLoaded() || engine.currentModelPath() != task.modelPath) {
                         engine.loadModel(task.modelPath)
@@ -49,11 +51,27 @@ class TranscriptionWorker(
                         applicationContext,
                         Uri.parse(task.uriString),
                     )
+                    val segmentsJson = TranscriptFormatter.segmentsToJson(result.segments)
                     dao.updateStatus(
                         id = task.id,
                         status = TaskStatus.DONE,
                         error = null,
                         resultText = result.text,
+                        segmentsJson = segmentsJson,
+                    )
+                    // Auto-export on success.
+                    val export = TranscriptExporter.exportAll(
+                        context = applicationContext,
+                        baseName = task.displayName,
+                        text = result.text,
+                        segments = result.segments,
+                        modelPath = task.modelPath,
+                    )
+                    dao.updateExports(
+                        id = task.id,
+                        txtUri = export.txtUri,
+                        jsonUri = export.jsonUri,
+                        srtUri = export.srtUri,
                     )
                 } catch (oom: OutOfMemoryError) {
                     dao.updateStatus(
@@ -61,6 +79,7 @@ class TranscriptionWorker(
                         status = TaskStatus.FAILED,
                         error = "Out of memory",
                         resultText = null,
+                        segmentsJson = null,
                     )
                 } catch (e: TranscriptionException) {
                     dao.updateStatus(
@@ -68,6 +87,7 @@ class TranscriptionWorker(
                         status = TaskStatus.FAILED,
                         error = e.message,
                         resultText = null,
+                        segmentsJson = null,
                     )
                 } catch (e: Exception) {
                     dao.updateStatus(
@@ -75,11 +95,11 @@ class TranscriptionWorker(
                         status = TaskStatus.FAILED,
                         error = e.message ?: e.javaClass.simpleName,
                         resultText = null,
+                        segmentsJson = null,
                     )
                 }
                 processed++
                 if (processed >= MAX_BATCH) {
-                    // Re-enqueue so WorkManager can continue remaining work.
                     enqueue(applicationContext)
                     break
                 }

@@ -6,15 +6,13 @@ All notable changes to WhisperVault are documented in this file.
 
 ### Added
 
-- Batch transcription queue designed for up to 100 files
-- Room persistence for task states: WAITING, RUNNING, DONE, FAILED
-- WorkManager unique work with expedited/long-running foreground execution (`dataSync`)
-- Foreground notification so transcription continues while the screen is locked
-- Process-death recovery: unfinished Room tasks are resumed on app start
-- Home UI queue list with live status
+- Transcript export as `.txt`, `.json`, and `.srt`
+- MediaStore writes under `Download/WhisperVault/` (no broad storage permission)
+- SRT cues built from whisper.cpp segment timestamps (`t0`/`t1` centiseconds)
+- Auto-export when a queue task reaches DONE; manual re-export from the queue list
 
 ### Earlier
 
-- Offline whisper.cpp ASR (JNI, decode, ggml tiny/base/small)
-- SAF multi-select audio picker
-- Android Gradle / Compose scaffold
+- Batch queue (Room + WorkManager + foreground `dataSync`)
+- Offline whisper.cpp ASR
+- SAF audio picker and project scaffold

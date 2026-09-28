@@ -12,7 +12,21 @@ Privacy-first **offline** audio transcription for Android. Select audio on your 
 
 ## Status
 
-Phase 4 — Batch queue with Room + WorkManager + foreground service. Select up to 100 files, enqueue, and keep running with the screen locked. Export formats arrive next.
+Phase 5 — Transcripts export as txt / json / srt to `Download/WhisperVault/` via MediaStore. SRT uses whisper.cpp segment timestamps.
+
+## Export location
+
+Successful transcriptions are written to **Download/WhisperVault/** on shared storage using the MediaStore Downloads collection (works on modern Android without `MANAGE_EXTERNAL_STORAGE`).
+
+Formats:
+
+- `.txt` — plain transcript
+- `.json` — text + segment timings + model path
+- `.srt` — SubRip cues from whisper segments (not invented timestamps)
+
+## Status (pipeline)
+
+Phase 4 — Batch queue with Room + WorkManager + foreground service. Select up to 100 files, enqueue, and keep running with the screen locked.
 
 ## ggml models (on device only)
 

@@ -5,11 +5,14 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.whispervault.WhisperVaultApp
+import com.whispervault.data.AppDatabase
 import com.whispervault.data.AudioFile
 import com.whispervault.data.TaskStatus
 import com.whispervault.data.TranscriptionQueueRepository
 import com.whispervault.data.TranscriptionTaskEntity
 import com.whispervault.storage.StorageGateway
+import com.whispervault.storage.TranscriptExporter
+import com.whispervault.storage.TranscriptFormatter
 import com.whispervault.transcription.TranscriptionEngine
 import com.whispervault.transcription.TranscriptionException
 import com.whispervault.transcription.WhisperModelSize
@@ -39,6 +42,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val engine = TranscriptionEngine()
     private val queueRepository: TranscriptionQueueRepository =
         (application as WhisperVaultApp).queueRepository
+    private val dao = AppDatabase.get(application).transcriptionTaskDao()
 
     private val _uiState = MutableStateFlow(
         HomeUiState(engineVersion = TranscriptionEngine.engineVersion()),
@@ -122,8 +126,35 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 it.copy(
                     isEnqueueing = false,
                     selectedFiles = emptyList(),
-                    statusMessage = "Enqueued $count file(s). Transcription continues with screen locked.",
+                    statusMessage = "Enqueued $count file(s). Exports go to Download/WhisperVault/.",
                 )
+            }
+        }
+    }
+
+    fun reExport(taskId: Long) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val task = dao.getById(taskId) ?: return@withContext
+                    if (task.status != TaskStatus.DONE || task.resultText.isNullOrBlank()) {
+                        return@withContext
+                    }
+                    val segments = TranscriptFormatter.segmentsFromJson(task.segmentsJson)
+                    val export = TranscriptExporter.exportAll(
+                        context = getApplication(),
+                        baseName = task.displayName,
+                        text = task.resultText,
+                        segments = segments,
+                        modelPath = task.modelPath,
+                    )
+                    dao.updateExports(task.id, export.txtUri, export.jsonUri, export.srtUri)
+                }
+                _uiState.update {
+                    it.copy(statusMessage = "Re-exported to ${TranscriptExporter.exportDirectoryLabel()}")
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(statusMessage = "Export failed: ${e.message}") }
             }
         }
     }

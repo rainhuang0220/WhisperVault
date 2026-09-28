@@ -9,6 +9,9 @@
     <string name="start_transcription">Start offline transcription</string>
     <string name="selected_files_header">Selected files</string>
     <string name="queue_header">Transcription queue</string>
+    <string name="re_export">Re-export txt/json/srt</string>
+    <string name="exported_hint">Saved under Download/WhisperVault/ (txt, json, srt)</string>
+    <string name="export_pending_hint">Export to Download/WhisperVault/</string>
     <string name="status_idle">Idle — select audio to begin</string>
     <string name="privacy_note">Audio never leaves your device. No network. No cloud AI.</string>
     <string name="notification_title">WhisperVault transcription</string>

@@ -155,7 +155,10 @@ fun HomeScreen(
                     )
                 }
                 items(tasks, key = { "task-${it.id}" }) { task ->
-                    TaskRow(task)
+                    TaskRow(
+                        task = task,
+                        onReExport = { viewModel.reExport(task.id) },
+                    )
                     HorizontalDivider()
                 }
             }
@@ -196,7 +199,10 @@ private fun SelectedAudioRow(file: AudioFile) {
 }
 
 @Composable
-private fun TaskRow(task: TranscriptionTaskEntity) {
+private fun TaskRow(
+    task: TranscriptionTaskEntity,
+    onReExport: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -233,6 +239,21 @@ private fun TaskRow(task: TranscriptionTaskEntity) {
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (task.status.name == "DONE") {
+            val exported = !task.exportTxtUri.isNullOrBlank()
+            Text(
+                text = if (exported) {
+                    stringResource(R.string.exported_hint)
+                } else {
+                    stringResource(R.string.export_pending_hint)
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+            OutlinedButton(onClick = onReExport) {
+                Text(text = stringResource(R.string.re_export))
+            }
         }
     }
 }
