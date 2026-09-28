@@ -12,7 +12,27 @@ Privacy-first **offline** audio transcription for Android. Select audio on your 
 
 ## Status
 
-Phase 2 — SAF multi-select audio picker wired to the home screen. Selected files (mp3, wav, m4a, flac, aac, ogg) are listed with size and duration when available. Offline ASR arrives next.
+Phase 3 — Offline whisper.cpp ASR integrated (JNI + decode + model load). Queue / export arrive in later phases.
+
+## ggml models (on device only)
+
+Download official ggml weights yourself (e.g. from the [whisper.cpp ggml releases](https://huggingface.co/ggerganov/whisper.cpp)) and pick them in the app:
+
+| Size | Typical filename |
+|------|------------------|
+| tiny | `ggml-tiny.bin` |
+| base | `ggml-base.bin` |
+| small | `ggml-small.bin` |
+
+The app never downloads models and never commits `*.bin` files. Missing model paths fail clearly.
+
+## Offline ASR details
+
+- ABI: **arm64-v8a** only
+- Engine: pinned **whisper.cpp v1.7.5** under `third_party/whisper.cpp`
+- Input: 16 kHz mono float PCM after on-device decode (`MediaExtractor` / `MediaCodec`, plus WAV parsing)
+- Formats: mp3, wav, m4a, flac, aac, ogg
+- API: `TranscriptionEngine.loadModel` / `transcribeUri` / `transcribePcm`
 
 ## Build prerequisites
 
@@ -45,8 +65,8 @@ Build a debug APK:
 | `app/src/main/java/com/whispervault/worker/` | WorkManager / foreground work |
 | `app/src/main/cpp/` | JNI + native CMake |
 | `native/` | Native integration notes |
-| `third_party/whisper.cpp/` | Vendored whisper.cpp (ASR phase) |
+| `third_party/whisper.cpp/` | Vendored whisper.cpp v1.7.5 |
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). whisper.cpp is MIT (see `third_party/whisper.cpp/LICENSE`).

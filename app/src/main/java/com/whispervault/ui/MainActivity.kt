@@ -23,6 +23,12 @@ class MainActivity : ComponentActivity() {
         homeViewModel.onAudioUrisSelected(uris)
     }
 
+    private val modelPicker = registerForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        homeViewModel.onModelUriSelected(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -33,6 +39,11 @@ class MainActivity : ComponentActivity() {
                         viewModel = homeViewModel,
                         onSelectAudio = {
                             audioPicker.launch(AudioFile.PICKER_MIME_TYPES)
+                        },
+                        onSelectModel = {
+                            modelPicker.launch(
+                                arrayOf("application/octet-stream", "*/*"),
+                            )
                         },
                     )
                 }

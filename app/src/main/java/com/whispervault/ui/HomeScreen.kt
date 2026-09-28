@@ -35,6 +35,7 @@ import com.whispervault.viewmodel.HomeViewModel
 fun HomeScreen(
     viewModel: HomeViewModel,
     onSelectAudio: () -> Unit,
+    onSelectModel: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -67,7 +68,31 @@ fun HomeScreen(
             color = MaterialTheme.colorScheme.secondary,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Engine: ${uiState.engineVersion.ifBlank { "…" }} · ABI arm64-v8a",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedButton(
+            onClick = onSelectModel,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(text = stringResource(R.string.select_model))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = if (uiState.modelReady) {
+                "Model: ${uiState.modelLabel}"
+            } else {
+                stringResource(R.string.model_hint)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onSelectAudio,
             modifier = Modifier.fillMaxWidth(),

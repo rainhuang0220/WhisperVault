@@ -3,6 +3,8 @@
     <string name="app_name">WhisperVault</string>
     <string name="tagline">Privacy-first offline transcription</string>
     <string name="select_audio">Select audio files</string>
+    <string name="select_model">Select ggml model</string>
+    <string name="model_hint">Provide ggml-tiny.bin, ggml-base.bin, or ggml-small.bin (on device only)</string>
     <string name="clear_selection">Clear selection</string>
     <string name="selected_files_header">Selected files</string>
     <string name="status_idle">Idle — select audio to begin</string>

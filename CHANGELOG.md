@@ -6,15 +6,14 @@ All notable changes to WhisperVault are documented in this file.
 
 ### Added
 
-- Storage Access Framework multi-select audio picker (mp3, wav, m4a, flac, aac, ogg)
-- `AudioFile` metadata model (uri, display name, size, mime, duration when available)
-- Home screen list of selected files with clear-selection action
-- Selection held in `HomeViewModel` for the session
+- Offline whisper.cpp v1.7.5 (vendored under `third_party/whisper.cpp`) built for arm64-v8a via NDK/CMake
+- JNI bridge: model load (`whisper_init_from_file_with_params`), `whisper_full`, segment text/timestamps
+- `TranscriptionEngine` API for PCM and content URI transcription (no network)
+- `AudioPreprocessor` decoding mp3/wav/m4a/flac/aac/ogg to 16 kHz mono float PCM
+- Support for user-provided ggml tiny / base / small models (SAF → app files dir)
+- Home screen model picker and engine version probe
 
 ### Earlier
 
-- Android Gradle project (Kotlin, Compose, Material3, minSdk 26, targetSdk 35)
-- Package layout: `ui`, `viewmodel`, `data`, `storage`, `transcription`, `worker`
-- Compose home screen with brand, privacy note, file-selection button, and idle status
-- JNI CMake skeleton (`libwhispervault`) under `app/src/main/cpp/`
-- MIT license, README, and `.gitignore` for Android / models / keystores
+- SAF multi-select audio picker and `AudioFile` metadata
+- Android Gradle / Compose scaffold, package layout, MIT license
