@@ -29,22 +29,26 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.whispervault.R
 import com.whispervault.data.AudioFile
+import com.whispervault.data.TranscriptionTaskEntity
 import com.whispervault.viewmodel.HomeViewModel
+import com.whispervault.viewmodel.label
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
     onSelectAudio: () -> Unit,
     onSelectModel: () -> Unit,
+    onStartTranscription: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val tasks by viewModel.tasks.collectAsStateWithLifecycle()
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .safeDrawingPadding()
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -54,34 +58,31 @@ fun HomeScreen(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = stringResource(R.string.tagline),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = stringResource(R.string.privacy_note),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.secondary,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Engine: ${uiState.engineVersion.ifBlank { "…" }} · ABI arm64-v8a",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
         )
-        Spacer(modifier = Modifier.height(24.dp))
-        OutlinedButton(
-            onClick = onSelectModel,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        OutlinedButton(onClick = onSelectModel, modifier = Modifier.fillMaxWidth()) {
             Text(text = stringResource(R.string.select_model))
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = if (uiState.modelReady) {
                 "Model: ${uiState.modelLabel}"
@@ -92,15 +93,20 @@ fun HomeScreen(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onSelectAudio,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(onClick = onSelectAudio, modifier = Modifier.fillMaxWidth()) {
             Text(text = stringResource(R.string.select_audio))
         }
         if (uiState.selectedFiles.isNotEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onStartTranscription,
+                enabled = uiState.modelReady && !uiState.isEnqueueing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(text = stringResource(R.string.start_transcription))
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             OutlinedButton(
                 onClick = { viewModel.clearSelection() },
                 modifier = Modifier.fillMaxWidth(),
@@ -108,32 +114,48 @@ fun HomeScreen(
                 Text(text = stringResource(R.string.clear_selection))
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "Status: ${uiState.statusMessage}",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(modifier = Modifier.height(16.dp))
-        if (uiState.selectedFiles.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.selected_files_header),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-            )
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f, fill = false),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                items(uiState.selectedFiles, key = { it.uri.toString() }) { file ->
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            if (uiState.selectedFiles.isNotEmpty()) {
+                item {
+                    Text(
+                        text = stringResource(R.string.selected_files_header),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+                items(uiState.selectedFiles, key = { "sel-${it.uri}" }) { file ->
                     SelectedAudioRow(file)
+                    HorizontalDivider()
+                }
+            }
+            if (tasks.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.queue_header),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 4.dp),
+                    )
+                }
+                items(tasks, key = { "task-${it.id}" }) { task ->
+                    TaskRow(task)
                     HorizontalDivider()
                 }
             }
@@ -146,7 +168,7 @@ private fun SelectedAudioRow(file: AudioFile) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 6.dp),
     ) {
         Text(
             text = file.displayName,
@@ -155,7 +177,6 @@ private fun SelectedAudioRow(file: AudioFile) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Spacer(modifier = Modifier.height(2.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -171,11 +192,46 @@ private fun SelectedAudioRow(file: AudioFile) {
                 color = MaterialTheme.colorScheme.secondary,
             )
         }
-        file.mimeType?.let { mime ->
+    }
+}
+
+@Composable
+private fun TaskRow(task: TranscriptionTaskEntity) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
             Text(
-                text = mime,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                text = task.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = task.status.label(),
+                style = MaterialTheme.typography.labelLarge,
+                color = when (task.status.name) {
+                    "DONE" -> MaterialTheme.colorScheme.primary
+                    "FAILED" -> MaterialTheme.colorScheme.error
+                    "RUNNING" -> MaterialTheme.colorScheme.secondary
+                    else -> MaterialTheme.colorScheme.onBackground
+                },
+            )
+        }
+        task.errorMessage?.let {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

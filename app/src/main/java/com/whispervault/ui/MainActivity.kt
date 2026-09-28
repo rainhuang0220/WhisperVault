@@ -1,5 +1,8 @@
 package com.whispervault.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,6 +12,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import com.whispervault.data.AudioFile
 import com.whispervault.ui.theme.WhisperVaultTheme
 import com.whispervault.viewmodel.HomeViewModel
@@ -29,6 +33,12 @@ class MainActivity : ComponentActivity() {
         homeViewModel.onModelUriSelected(uri)
     }
 
+    private val notificationPermission = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) {
+        homeViewModel.enqueueSelected()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -45,9 +55,24 @@ class MainActivity : ComponentActivity() {
                                 arrayOf("application/octet-stream", "*/*"),
                             )
                         },
+                        onStartTranscription = { ensureNotificationThenEnqueue() },
                     )
                 }
             }
         }
+    }
+
+    private fun ensureNotificationThenEnqueue() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            val granted = ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+            if (!granted) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                return
+            }
+        }
+        homeViewModel.enqueueSelected()
     }
 }

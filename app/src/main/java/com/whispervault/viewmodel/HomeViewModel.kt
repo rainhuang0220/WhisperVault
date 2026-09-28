@@ -4,37 +4,49 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.whispervault.WhisperVaultApp
 import com.whispervault.data.AudioFile
+import com.whispervault.data.TaskStatus
+import com.whispervault.data.TranscriptionQueueRepository
+import com.whispervault.data.TranscriptionTaskEntity
 import com.whispervault.storage.StorageGateway
 import com.whispervault.transcription.TranscriptionEngine
 import com.whispervault.transcription.TranscriptionException
 import com.whispervault.transcription.WhisperModelSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
 data class HomeUiState(
-    val statusMessage: String = "Idle — select audio to begin",
+    val statusMessage: String = "Idle — select a ggml model, then audio",
     val selectedFiles: List<AudioFile> = emptyList(),
     val modelPath: String? = null,
     val modelLabel: String? = null,
     val modelReady: Boolean = false,
     val engineVersion: String = "",
+    val isEnqueueing: Boolean = false,
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val engine = TranscriptionEngine()
+    private val queueRepository: TranscriptionQueueRepository =
+        (application as WhisperVaultApp).queueRepository
 
     private val _uiState = MutableStateFlow(
         HomeUiState(engineVersion = TranscriptionEngine.engineVersion()),
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    val tasks: StateFlow<List<TranscriptionTaskEntity>> = queueRepository.observeTasks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     fun onAudioUrisSelected(uris: List<Uri>) {
         if (uris.isEmpty()) {
@@ -47,6 +59,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 selectedFiles = files,
                 statusMessage = when {
                     files.isEmpty() -> "No supported audio files in selection"
+                    files.size > TranscriptionQueueRepository.MAX_QUEUE ->
+                        "Selected ${files.size}; will enqueue first ${TranscriptionQueueRepository.MAX_QUEUE}"
                     else -> "Selected ${files.size} audio file(s)"
                 },
             )
@@ -78,18 +92,38 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
             } catch (e: TranscriptionException) {
                 _uiState.update {
-                    it.copy(
-                        modelReady = false,
-                        statusMessage = e.message ?: "Model load failed",
-                    )
+                    it.copy(modelReady = false, statusMessage = e.message ?: "Model load failed")
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(
-                        modelReady = false,
-                        statusMessage = "Model error: ${e.message}",
-                    )
+                    it.copy(modelReady = false, statusMessage = "Model error: ${e.message}")
                 }
+            }
+        }
+    }
+
+    fun enqueueSelected() {
+        val modelPath = _uiState.value.modelPath
+        val files = _uiState.value.selectedFiles
+        if (modelPath.isNullOrBlank()) {
+            _uiState.update { it.copy(statusMessage = "Select a ggml model first") }
+            return
+        }
+        if (files.isEmpty()) {
+            _uiState.update { it.copy(statusMessage = "Select audio files first") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isEnqueueing = true) }
+            val count = withContext(Dispatchers.IO) {
+                queueRepository.enqueue(files, modelPath)
+            }
+            _uiState.update {
+                it.copy(
+                    isEnqueueing = false,
+                    selectedFiles = emptyList(),
+                    statusMessage = "Enqueued $count file(s). Transcription continues with screen locked.",
+                )
             }
         }
     }
@@ -107,7 +141,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /** Exposed for the queue phase; keeps a single engine instance. */
     fun transcriptionEngine(): TranscriptionEngine = engine
 
     override fun onCleared() {
@@ -126,4 +159,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         } ?: throw TranscriptionException.ModelMissing(uri.toString())
         return target.absolutePath
     }
+}
+
+fun TaskStatus.label(): String = when (this) {
+    TaskStatus.WAITING -> "WAITING"
+    TaskStatus.RUNNING -> "RUNNING"
+    TaskStatus.DONE -> "DONE"
+    TaskStatus.FAILED -> "FAILED"
 }

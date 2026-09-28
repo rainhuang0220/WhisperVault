@@ -12,7 +12,7 @@ Privacy-first **offline** audio transcription for Android. Select audio on your 
 
 ## Status
 
-Phase 3 — Offline whisper.cpp ASR integrated (JNI + decode + model load). Queue / export arrive in later phases.
+Phase 4 — Batch queue with Room + WorkManager + foreground service. Select up to 100 files, enqueue, and keep running with the screen locked. Export formats arrive next.
 
 ## ggml models (on device only)
 

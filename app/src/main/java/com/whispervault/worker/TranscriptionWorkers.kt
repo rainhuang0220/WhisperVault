@@ -2,6 +2,7 @@ package com.whispervault.worker
 
 /**
  * WorkManager / foreground-service orchestration for batch transcription.
- * Queue pipeline lands in a later phase.
  */
-object TranscriptionWorkers
+object TranscriptionWorkers {
+    const val QUEUE_WORK_NAME = TranscriptionWorker.UNIQUE_WORK_NAME
+}

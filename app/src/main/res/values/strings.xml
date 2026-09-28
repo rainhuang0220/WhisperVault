@@ -6,7 +6,12 @@
     <string name="select_model">Select ggml model</string>
     <string name="model_hint">Provide ggml-tiny.bin, ggml-base.bin, or ggml-small.bin (on device only)</string>
     <string name="clear_selection">Clear selection</string>
+    <string name="start_transcription">Start offline transcription</string>
     <string name="selected_files_header">Selected files</string>
+    <string name="queue_header">Transcription queue</string>
     <string name="status_idle">Idle — select audio to begin</string>
     <string name="privacy_note">Audio never leaves your device. No network. No cloud AI.</string>
+    <string name="notification_title">WhisperVault transcription</string>
+    <string name="notification_channel_name">Transcription</string>
+    <string name="notification_channel_desc">Progress for offline batch transcription</string>
 </resources>
